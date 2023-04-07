@@ -552,6 +552,10 @@ void OptIfConversionDsc::IfConvertDump()
 //
 bool OptIfConversionDsc::optIfConvert()
 {
+#ifdef TARGET_X86
+    return false; // Disable usage of SELECT nodes on x86. They emit 'cmov' instructions that are only available on Pentium 2 or higher.
+#endif
+
     // Does the block end by branching via a JTRUE after a compare?
     if (m_startBlock->bbJumpKind != BBJ_COND || m_startBlock->NumSucc() != 2)
     {

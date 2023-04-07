@@ -10774,6 +10774,47 @@ void CodeGen::genZeroInitFrameUsingBlockInit(int untrLclHi, int untrLclLo, regNu
     assert(genUseBlockInit);
     assert(untrLclHi > untrLclLo);
 
+#ifdef TARGET_X86
+    // Disable usage of SSE instructions for stack prolog zeroing on x86. They are only available on Pentium 3 or higher.
+    // Instead, revert to 'rep stosd' which was used originally before switching to xorps/movups:
+    // https://github.com/dotnet/runtime/commit/88ebe4a2e3e6a21858bd12bdb8b0a76a09a7e275?diff=split
+
+    /*
+        Generate the following code:
+            lea     edi, [ebp/esp-OFFS]
+            mov     ecx, <size>
+            xor     eax, eax
+            rep     stosd
+     */
+
+    noway_assert(regSet.rsRegsModified(RBM_EDI));
+
+    // For register arguments we may have to save ECX
+    if (intRegState.rsCalleeRegArgMaskLiveIn & RBM_ECX)
+    {
+        noway_assert(regSet.rsRegsModified(RBM_ESI));
+        inst_Mov(TYP_INT, REG_ESI, REG_ECX, /* canSkip */ false);
+        regSet.verifyRegUsed(REG_ESI);
+    }
+
+    noway_assert((intRegState.rsCalleeRegArgMaskLiveIn & RBM_EAX) == 0);
+
+    GetEmitter()->emitIns_R_AR(INS_lea, EA_PTRSIZE, REG_EDI, genFramePointerReg(), untrLclLo);
+    regSet.verifyRegUsed(REG_EDI);
+
+    inst_RV_IV(INS_mov, REG_ECX, (untrLclHi - untrLclLo) / sizeof(int), EA_4BYTE);
+    instGen_Set_Reg_To_Zero(EA_PTRSIZE, REG_EAX);
+    instGen(INS_r_stosd);
+
+    // Move back the argument registers
+    if (intRegState.rsCalleeRegArgMaskLiveIn & RBM_ECX)
+    {
+        inst_Mov(TYP_INT, REG_ECX, REG_ESI, /* canSkip */ false);
+    }
+
+    return;
+#endif
+
     emitter*  emit        = GetEmitter();
     regNumber frameReg    = genFramePointerReg();
     regNumber zeroReg     = REG_NA;
