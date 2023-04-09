@@ -10774,6 +10774,12 @@ void CodeGen::genZeroInitFrameUsingBlockInit(int untrLclHi, int untrLclLo, regNu
     assert(genUseBlockInit);
     assert(untrLclHi > untrLclLo);
 
+    int blkSize = untrLclHi - untrLclLo;
+    assert(blkSize >= 0);
+    noway_assert((blkSize % sizeof(int)) == 0);
+    // initReg is not a live incoming argument reg
+    assert((genRegMask(initReg) & intRegState.rsCalleeRegArgMaskLiveIn) == 0);
+
 #ifdef TARGET_X86
     // Disable usage of SSE instructions for stack prolog zeroing on x86. They are only available on Pentium 3 or higher.
     // Instead, revert to 'rep stosd' which was used originally before switching to xorps/movups:
@@ -10818,13 +10824,7 @@ void CodeGen::genZeroInitFrameUsingBlockInit(int untrLclHi, int untrLclLo, regNu
     emitter*  emit        = GetEmitter();
     regNumber frameReg    = genFramePointerReg();
     regNumber zeroReg     = REG_NA;
-    int       blkSize     = untrLclHi - untrLclLo;
     int       minSimdSize = XMM_REGSIZE_BYTES;
-
-    assert(blkSize >= 0);
-    noway_assert((blkSize % sizeof(int)) == 0);
-    // initReg is not a live incoming argument reg
-    assert((genRegMask(initReg) & intRegState.rsCalleeRegArgMaskLiveIn) == 0);
 
 #if defined(TARGET_AMD64)
     // We will align on x64 so can use the aligned mov
