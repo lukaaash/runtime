@@ -4412,6 +4412,28 @@ void CodeGen::genCheckUseBlockInit()
             maskCalleeRegArgMask &= ~RBM_SECRET_STUB_PARAM;
         }
 
+#ifdef TARGET_X86
+        // We will need this later in genZeroInitFrameUsingBlockInit. As used originally before switching to xorps/movups:
+        // https://github.com/dotnet/runtime/commit/88ebe4a2e3e6a21858bd12bdb8b0a76a09a7e275?diff=split
+
+        // If we're going to use "REP STOS", remember that we will trash EDI
+        // For fastcall we will have to save ECX, EAX
+        // so reserve two extra callee saved
+        // This is better than pushing eax, ecx, because we in the later
+        // we will mess up already computed offsets on the stack (for ESP frames)
+        regSet.rsSetRegsModified(RBM_EDI);
+
+        if (maskCalleeRegArgMask & RBM_ECX)
+        {
+            regSet.rsSetRegsModified(RBM_ESI);
+        }
+
+        if (maskCalleeRegArgMask & RBM_EAX)
+        {
+            regSet.rsSetRegsModified(RBM_EBX);
+        }
+#endif
+
 #ifdef TARGET_ARM
         //
         // On the Arm if we are using a block init to initialize, then we
