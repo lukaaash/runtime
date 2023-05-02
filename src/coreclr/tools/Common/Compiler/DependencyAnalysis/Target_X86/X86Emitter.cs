@@ -48,6 +48,12 @@ namespace ILCompiler.DependencyAnalysis.X86
             }
         }
 
+        public void EmitJMP(Register register)
+        {
+            Builder.EmitByte(0xff);
+            Builder.EmitByte((byte)(0xE0 | (byte)register));
+        }
+
         public void EmitXOR(Register register1, Register register2)
         {
             Builder.EmitByte(0x33);
@@ -96,6 +102,18 @@ namespace ILCompiler.DependencyAnalysis.X86
                 Builder.EmitByte((byte)(0xB8 + (byte)register));
             }
             Builder.EmitReloc(node, RelocType.IMAGE_REL_BASED_HIGHLOW, delta);
+        }
+
+        public void EmitMOV(Register regDst, ref AddrMode addrMode)
+        {
+            // we don't support these yet
+            Debug.Assert(addrMode.IndexReg == null);
+            Debug.Assert(addrMode.Size == AddrModeSize.Int32);
+            Debug.Assert(addrMode.Scale == 0);
+
+            Builder.EmitByte(0x8B);
+            Builder.EmitByte((byte)(0x80 | (((int)regDst & 0x07) << 3) | (((int)addrMode.BaseReg & 0x07))));
+            Builder.EmitInt(addrMode.Offset);
         }
 
         public void EmitINT3()

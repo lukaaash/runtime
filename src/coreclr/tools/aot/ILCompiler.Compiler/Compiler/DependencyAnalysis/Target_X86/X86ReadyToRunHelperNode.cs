@@ -2,7 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
-
+using System.Diagnostics;
 using ILCompiler.DependencyAnalysis.X86;
 
 using Internal.TypeSystem;
@@ -20,7 +20,26 @@ namespace ILCompiler.DependencyAnalysis
             {
                 case ReadyToRunHelperId.VirtualCall:
                     {
-                        encoder.EmitINT3();
+                        MethodDesc targetMethod = (MethodDesc)Target;
+
+                        Debug.Assert(!targetMethod.OwningType.IsInterface);
+                        Debug.Assert(!targetMethod.CanMethodBeInSealedVTable());
+
+                        var loadFromThisPtr = new AddrMode(encoder.TargetRegister.Arg0, null, 0, 0, AddrModeSize.Int32);
+                        encoder.EmitMOV(encoder.TargetRegister.Result, ref loadFromThisPtr);
+
+                        int pointerSize = factory.Target.PointerSize;
+
+                        int slot = 0;
+                        if (!relocsOnly)
+                        {
+                            slot = VirtualMethodSlotHelper.GetVirtualMethodSlot(factory, targetMethod, targetMethod.OwningType);
+                            Debug.Assert(slot != -1);
+                        }
+
+                        AddrMode jmpAddrMode = new AddrMode(encoder.TargetRegister.Result, null, EETypeNode.GetVTableOffset(pointerSize) + (slot * pointerSize), 0, AddrModeSize.Int32);
+                        encoder.EmitMOV(encoder.TargetRegister.Result, ref jmpAddrMode);
+                        encoder.EmitJMP(encoder.TargetRegister.Result);
                     }
                     break;
 
